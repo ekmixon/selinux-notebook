@@ -64,7 +64,7 @@ class UnusedError(Exception):
     def __init__(self, info):
         self.info = info
     def __str__(self):
-        return "Unused Error: %s" % self.info
+        return f"Unused Error: {self.info}"
 
 class Flask:
     '''
@@ -134,16 +134,12 @@ class Flask:
             m = self.WHITE.search(line)
             if m: continue
 
-            m = self.CLASS.search(line)
-            if m:
+            if m := self.CLASS.search(line):
                 g = m.groupdict()
                 c = g['name']
                 if c in classes: raise DuplicateError (self.CLASS, path, number, c)
                 classes.append(c)
-                if self.USERFLAG.search(line):
-                    self.userspace[c] = True
-                else:
-                    self.userspace[c] = False
+                self.userspace[c] = bool(self.USERFLAG.search(line))
                 continue
 
             raise ParseError ("data.  Was expecting either a comment, whitespace, or class definition. ", path, number)
@@ -165,8 +161,7 @@ class Flask:
             m = self.WHITE.search(line)
             if m: continue
 
-            m = self.SID.search(line)
-            if m:
+            if m := self.SID.search(line):
                 g = m.groupdict()
                 s = g['name']
                 if s in sids: raise DuplicateError (self.SID, path, number, s)
@@ -211,8 +206,7 @@ class Flask:
                     state = NONE
                 continue
 
-            m = self.COMMON.search(line)
-            if m:
+            if m := self.COMMON.search(line):
                 if state != NONE: raise ParseError (self.COMMON, path, number)
                 g = m.groupdict()
                 c = g['name']
@@ -223,8 +217,7 @@ class Flask:
                 state = COMMON
                 continue
 
-            m = self.CLASS.search(line)
-            if m:
+            if m := self.CLASS.search(line):
                 if state != NONE: raise ParseError (self.CLASS, number)
                 g = m.groupdict()
                 c = g['name']
@@ -235,8 +228,7 @@ class Flask:
                 state = CLASS
                 continue
 
-            m = self.INHERITS.search(line)
-            if m:
+            if m := self.INHERITS.search(line):
                 if state != CLASS: raise ParseError (self.INHERITS, number)
                 g = m.groupdict()
                 i = g['name']
@@ -247,22 +239,17 @@ class Flask:
                 if not self.userspace[c]: user_commons[i] = False
                 continue
 
-            m = self.OPENB.search(line)
-            if m:
-                if (state != CLASS \
-                and state != INHERIT \
-                and state != COMMON) \
-                or state2 != NONE:
+            if m := self.OPENB.search(line):
+                if state not in [CLASS, INHERIT, COMMON] or state2 != NONE:
                     raise ParseError (self.OPENB, path, number)
                 state2 = OPEN
                 continue
 
-            m = self.VECTOR.search(line)
-            if m:
+            if m := self.VECTOR.search(line):
                 if state2 != OPEN: raise ParseError (self.VECTOR, path, number)
                 g = m.groupdict()
                 v = g['name']
-                if state == CLASS or state == INHERIT:
+                if state in [CLASS, INHERIT]:
                     if v in vector[c]: raise DuplicateError (self.VECTOR, path, number, v)
                     vector[c].append(v)
                 elif state == COMMON:
@@ -270,8 +257,7 @@ class Flask:
                     common[c].append(v)
                 continue
 
-            m = self.CLOSEB.search(line)
-            if m:
+            if m := self.CLOSEB.search(line):
                 if state2 != OPEN: raise ParseError (self.CLOSEB, path, number)
                 state = NONE
                 state2 = NONE
@@ -282,9 +268,10 @@ class Flask:
 
         if state != NONE and state2 != NONE: raise ParseError (self.EOF, path, number)
 
-        cvdiff = set(self.classes) - set(vectors)
-        if cvdiff: raise UnusedError ("Not all security classes were used in access vectors: %s" % cvdiff) # the inverse of this will be caught as an undefined class error
-
+        if cvdiff := set(self.classes) - set(vectors):
+            raise UnusedError(
+                f"Not all security classes were used in access vectors: {cvdiff}"
+            )
 # These arrays contain the classes, permissions and initial SIDs after
 # processing the Reference Policy security_classes, access_vector and
 # initial_sids files. The build Policy Routines will then output the
